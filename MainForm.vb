@@ -114,7 +114,7 @@ Public Class MainForm
     Private Sub BuildSrtTab()
         Dim panelTop As New Panel()
         panelTop.Dock = DockStyle.Top
-        panelTop.Height = 90
+        panelTop.Height = 122
 
         Dim lblFind As New Label() With {.Text = "Tim:", .Left = 10, .Top = 12, .Width = 40}
         txtFind = New TextBox() With {.Left = 55, .Top = 9, .Width = 150}
@@ -139,16 +139,23 @@ Public Class MainForm
         Dim btnLoadSrt As New Button() With {.Text = "Mo tep SRT...", .Left = 610, .Top = 42, .Width = 170}
         AddHandler btnLoadSrt.Click, AddressOf OpenSrt_Click
 
+        Dim btnCheckOverlap As New Button() With {.Text = "Kiem tra overlap", .Left = 10, .Top = 82, .Width = 170}
+        AddHandler btnCheckOverlap.Click, AddressOf BtnCheckOverlap_Click
+
+        Dim btnFixOverlap As New Button() With {.Text = "Tu dong sua overlap", .Left = 190, .Top = 82, .Width = 190}
+        AddHandler btnFixOverlap.Click, AddressOf BtnFixOverlap_Click
+
         panelTop.Controls.AddRange(New Control() {
             lblFind, txtFind, lblReplace, txtReplace, btnFindReplace,
             lblShift, rbShiftPlus, rbShiftMinus, numShiftSeconds, lblSec, numShiftMillis, lblMs, btnShiftTime,
-            btnRenumber, btnLoadSrt})
+            btnRenumber, btnLoadSrt, btnCheckOverlap, btnFixOverlap})
 
         dgvSrt = New DataGridView()
         dgvSrt.Dock = DockStyle.Fill
         dgvSrt.AllowUserToAddRows = False
         dgvSrt.AllowUserToDeleteRows = True
         dgvSrt.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
+        dgvSrt.EditMode = DataGridViewEditMode.EditOnEnter
         dgvSrt.Columns.Add("colIndex", "Index")
         dgvSrt.Columns.Add("colStart", "Bat dau")
         dgvSrt.Columns.Add("colEnd", "Ket thuc")
@@ -283,6 +290,94 @@ Public Class MainForm
 #End Region
 
 #Region "SRT logic"
+
+    Private Sub BtnCheckOverlap_Click(sender As Object, e As EventArgs)
+        If srtEntries.Count = 0 Then
+            MessageBox.Show("Hay mo mot tep SRT truoc.", "Thong bao")
+            Return
+        End If
+
+        Dim issues As List(Of String) = CheckOverlaps(srtEntries)
+        If issues.Count = 0 Then
+            lblSrtStatus.Text = "Khong co loi overlap."
+            MessageBox.Show("Khong phat hien loi overlap nao.", "Ket qua kiem tra")
+        Else
+            lblSrtStatus.Text = String.Format("Phat hien {0} loi overlap.", issues.Count)
+            MessageBox.Show(String.Join(Environment.NewLine, issues),
+                             String.Format("Phat hien {0} loi overlap", issues.Count),
+                             MessageBoxButtons.OK, MessageBoxIcon.Warning)
+        End If
+    End Sub
+
+    Private Sub BtnFixOverlap_Click(sender As Object, e As EventArgs)
+        If srtEntries.Count = 0 Then
+            MessageBox.Show("Hay mo mot tep SRT truoc.", "Thong bao")
+            Return
+        End If
+
+        Dim fixedCount As Integer = FixOverlaps(srtEntries)
+        FillSrtGrid()
+
+        If fixedCount > 0 Then
+            lblSrtStatus.Text = String.Format("Da tu dong sua {0} loi overlap. Nho bam 'Luu SRT' de ghi lai tep.", fixedCount)
+            MessageBox.Show(String.Format("Da sua {0} loi overlap. Kiem tra lai bang roi bam 'Luu SRT' de ghi tep.", fixedCount), "Da sua overlap")
+        Else
+            lblSrtStatus.Text = "Khong co loi overlap can sua."
+            MessageBox.Show("Khong phat hien loi overlap nao.", "Thong bao")
+        End If
+    End Sub
+
+    ''' <summary>
+    ''' Duyet toan bo danh sach entries theo dung thu tu hien co trong bang va tra ve
+    ''' MOI loi overlap tim thay (dong sau co StartTime nho hon EndTime cua dong truoc).
+    ''' </summary>
+    Private Function CheckOverlaps(entries As List(Of SrtEntry)) As List(Of String)
+        Dim issues As New List(Of String)
+        Dim lastEndTime As TimeSpan = TimeSpan.Zero
+
+        For i As Integer = 0 To entries.Count - 1
+            Dim entry As SrtEntry = entries(i)
+            If i > 0 AndAlso entry.StartTime < lastEndTime Then
+                issues.Add(String.Format("Dong {0} (index {1}): bat dau {2} nho hon ket thuc cua dong truoc ({3})",
+                    i + 1, entry.Index, SrtEntry.FormatTime(entry.StartTime), SrtEntry.FormatTime(lastEndTime)))
+            End If
+            If entry.EndTime > lastEndTime Then lastEndTime = entry.EndTime
+        Next
+
+        Return issues
+    End Function
+
+    ''' <summary>
+    ''' Tu dong sua loi overlap ngay tren du lieu dang co (chua ghi tep): neu StartTime cua
+    ''' dong hien tai nho hon EndTime cua dong truoc, day StartTime len sau EndTime do 1ms;
+    ''' neu viec do lam EndTime &lt;= StartTime (overlap qua lon) thi day ca EndTime len
+    ''' toi thieu 500ms de tranh sinh thoi luong am/bang 0.
+    ''' </summary>
+    Private Function FixOverlaps(entries As List(Of SrtEntry)) As Integer
+        Dim lastEndTime As TimeSpan = TimeSpan.Zero
+        Dim fixedCount As Integer = 0
+        Dim minDuration As TimeSpan = TimeSpan.FromMilliseconds(500)
+
+        For i As Integer = 0 To entries.Count - 1
+            Dim entry As SrtEntry = entries(i)
+            Dim wasFixed As Boolean = False
+
+            If i > 0 AndAlso entry.StartTime < lastEndTime Then
+                entry.StartTime = lastEndTime.Add(TimeSpan.FromMilliseconds(1))
+                wasFixed = True
+            End If
+
+            If entry.EndTime <= entry.StartTime Then
+                entry.EndTime = entry.StartTime.Add(minDuration)
+                wasFixed = True
+            End If
+
+            If wasFixed Then fixedCount += 1
+            lastEndTime = entry.EndTime
+        Next
+
+        Return fixedCount
+    End Function
 
     Private Sub OpenSrt_Click(sender As Object, e As EventArgs)
         Using ofd As New OpenFileDialog()

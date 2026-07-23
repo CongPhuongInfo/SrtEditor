@@ -50,6 +50,13 @@ Nếu báo lỗi không tìm thấy `vbc.exe`, mở `build.bat` bằng Notepad v
 - **Dịch thời gian (Shift time)**: cộng/trừ toàn bộ mốc thời gian theo số
   giây + mili-giây nhập vào (hữu ích khi phụ đề bị lệch so với video).
 - **Đánh số lại**: đánh lại index từ 1 theo thứ tự hiện có trên bảng.
+- **Kiểm tra overlap**: rà toàn bộ bảng (theo đúng thứ tự đang có) và liệt kê
+  mọi dòng có thời gian bắt đầu nhỏ hơn thời gian kết thúc của dòng trước đó.
+- **Tự động sửa overlap**: đẩy thời gian bắt đầu của dòng bị overlap ra sau
+  thời gian kết thúc của dòng trước 1ms; nếu overlap quá lớn khiến thời gian
+  kết thúc bị nhỏ hơn/bằng thời gian bắt đầu mới, thời gian kết thúc cũng
+  được đẩy theo tối thiểu 500ms để tránh thời lượng âm/0. Sau khi sửa, bảng
+  được cập nhật ngay — nhớ bấm "Lưu SRT" để ghi lại tệp.
 - **Lưu / Lưu thành...**: ghi lại đúng định dạng `.srt` chuẩn.
 - Ở cột "Nội dung", nếu phụ đề có nhiều dòng, các dòng được nối bằng
   ` | ` trên bảng — khi lưu sẽ tự tách lại thành nhiều dòng.
